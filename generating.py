@@ -1,7 +1,6 @@
 from utils.utils import *
 from utils.plotters import *
 import os
-import librosa
 
 
 class AudioGenerator(object):
@@ -59,38 +58,6 @@ class AudioGenerator(object):
                 reconstructed_signal, self.params.fs_list[-1], overwrite=False)
         else:
             return reconstructed_signal
-
-    def inpaint(self, new_noise=False):
-        reconstruction_noise_list = self.reconstruction_noise_list
-        if new_noise:
-            pad_size = calc_pad_size(self.params)
-            reconstruction_noise_list_new = []
-            for idx, (r, fs, noise_amp) in enumerate(
-                    zip(reconstruction_noise_list, self.params.fs_list, self.noise_amp_list)):
-                new_r = r.clone()
-                for hole in self.params.inpainting_indices:
-                    start_idx = int(hole[0] + pad_size)
-                    end_idx = int(hole[1] + pad_size)
-                    new_noise = get_noise(self.params, end_idx - start_idx).expand(1, 1, -1).to(r.device)
-                    new_noise = new_noise * noise_amp
-                    new_r[:, :, start_idx:end_idx] = new_noise
-                reconstruction_noise_list_new.append(new_r)
-            reconstruction_noise_list = reconstruction_noise_list_new
-        reconstructed_signal = self.reconstruct(reconstruction_noise_list, write=False)
-        real_signal, _ = librosa.load(
-            os.path.join(self.params.output_folder, 'real@%dHz.wav' % self.params.Fs),
-            sr=self.params.Fs)
-        stitched_signal = real_signal.copy()
-        frame_idcs = []
-        window_size = []
-        for hole in self.params.inpainting_indices:
-            frame_idcs.append(range(hole[0], hole[1]))
-            win_size = int((hole[1] - hole[0] + 1) / 2)
-            window_size.append(win_size - (1 - win_size % 2))
-        stitched_signal = stitch_signals(stitched_signal, reconstructed_signal.squeeze().cpu().numpy(),
-                                         frame_idcs, window_size=window_size)
-        write_signal(os.path.join(self.params.output_folder, 'GeneratedSignals', 'inpainted'), stitched_signal,
-                     self.params.Fs)
 
     def extend(self, condition, filt_file=None):
         conditioned_signal = self.condition(condition, False)

@@ -71,7 +71,7 @@ def reset_grads(model, require_grad):
     return model
 
 
-def calc_gradient_penalty(params, netD, real_data, fake_data, LAMBDA, alpha=None, _grad_outputs=None, mask_ratio=None):
+def calc_gradient_penalty(params, netD, real_data, fake_data, LAMBDA, alpha=None, _grad_outputs=None):
     # Gradient penalty method for WGAN
     if alpha is None:
         alpha = torch.rand(1, 1)
@@ -80,19 +80,8 @@ def calc_gradient_penalty(params, netD, real_data, fake_data, LAMBDA, alpha=None
             alpha = alpha.cuda(real_data.get_device())  # gpu) #if use_cuda else alpha
     interpolates = alpha * real_data + ((1 - alpha) * fake_data)
     interpolates = torch.autograd.Variable(interpolates, requires_grad=True)
-    if params.run_mode == 'inpainting':
-        use_mask = True
-    else:
-        use_mask = False
-        mask_ratio = 1
-    disc_interpolates = netD(interpolates, use_mask)
-    if params.run_mode == 'inpainting':
-        disc_interpolates_cp = disc_interpolates.clone()
-        disc_interpolates = disc_interpolates_cp[:, :, :params.not_valid_idx_start[0]]
-        if len(params.current_holes) > 1:
-            for i in range(len(params.current_holes) - 1):
-                disc_interpolates = torch.cat((disc_interpolates, disc_interpolates_cp[:, :, params.not_valid_idx_end[i] + 1:params.not_valid_idx_start[i+1]]), dim=2)
-        disc_interpolates = torch.cat((disc_interpolates, disc_interpolates_cp[:, :, params.not_valid_idx_end[-1] + 1:]), dim=2)
+    mask_ratio = 1
+    disc_interpolates = netD(interpolates)
     if _grad_outputs is None:
         _grad_outputs = torch.ones(disc_interpolates.size())
         if torch.cuda.is_available():
@@ -106,25 +95,18 @@ def calc_gradient_penalty(params, netD, real_data, fake_data, LAMBDA, alpha=None
 
 
 def create_input_signals(params, input_signal, Fs):
-    # Performs downscaling for desired scales and outputs list of signals
+    """Performs downscaling for desired scales and outputs list of signals"""
     signals_list = []
     fs_list = []
     n_scales = len(params.scales)
     set_first_scale = False
-    rf = calc_receptive_field(params.filter_size, params.dilation_factors)
     for k in range(n_scales):
         downsample = params.scales[k]
         fs = int(Fs / downsample)
         if downsample == 1:
             coarse_sig = input_signal
         else:
-            coarse_sig = torch.Tensor(librosa.resample(input_signal.squeeze().numpy(), Fs, fs))
-        if params.run_mode == 'inpainting':
-            holes_sum = 0
-            for hole_idx in params.inpainting_indices:
-                holes_sum += hole_idx[1] - hole_idx[0] + 2*rf
-            if (holes_sum) / params.Fs * fs > len(coarse_sig):
-                    continue
+            coarse_sig = torch.Tensor(librosa.resample(input_signal.squeeze().numpy(), orig_sr=Fs, target_sr=fs))
         if params.speech and fs < 500:
             continue
         if params.set_first_scale_by_energy and not params.speech:
@@ -177,30 +159,13 @@ def resample_sig(params, input_signal, orig_fs=None, target_fs=None):
 
 
 def get_input_signal(params):
+    """load input file with `params.init_sample_rate and normalize it"""
     file_name = params.input_file.split('.')
     if len(file_name) < 2:
         params.input_file = '.'.join([params.input_file, 'wav'])
     output_folder = file_name[0].replace(' ', '_')
-    if len(params.segments_to_train) == 0:
-        samples, Fs = librosa.load(os.path.join('inputs', params.input_file), sr=None,
-                                   offset=params.start_time, duration=2 * params.max_length)
-    else:
-        if len(params.segments_to_train) % 2 == 1:
-            raise Exception('Please provide valid segments, in the form of: start1, end1, start2, end2, ... in [sec]')
-        params.max_length = 1e3  # dummy
-        params.min_length = 0
-        for idx in range(0, len(params.segments_to_train), 2):
-            if idx == 0:
-                samples, Fs = librosa.load(os.path.join('inputs', params.input_file), sr=None,
-                                           offset=params.segments_to_train[idx],
-                                           duration=params.segments_to_train[idx + 1] - params.segments_to_train[idx])
-            else:
-                _samples, _ = librosa.load(os.path.join('inputs', params.input_path), sr=None,
-                                           offset=params.segments_to_train[idx],
-                                           duration=params.segments_to_train[idx + 1] - params.segments_to_train[
-                                               idx])
-                samples = np.concatenate((samples, _samples))
-
+    samples, Fs = librosa.load(os.path.join('inputs', params.input_file), sr=None,
+                               offset=params.start_time, duration=2 * params.max_length)
     if samples.shape[0] / Fs > params.max_length:
         n_samples = int(params.max_length * Fs)
         samples = samples[:n_samples]
@@ -219,6 +184,7 @@ def get_input_signal(params):
 
 def draw_signal(params, generators_list, signals_lengths_list, fs_list, noise_amp_list, reconstruction_noise_list=None,
                 condition=None, output_all_scales=False):
+    """forward pass on the generators_list"""
     # Draws a signal up to current scale, using learned generators
     pad_size = calc_pad_size(params)
     if output_all_scales:

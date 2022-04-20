@@ -46,28 +46,21 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, params):
         super(Discriminator, self).__init__()
-        if params.run_mode == 'inpainting':
-            mask = params.current_holes
-        else:
-            mask = None
-        self.head = ConvBlock(params, 1, params.hidden_channels, params.dilation_factors[0], mask=mask)
-        mask = self.head.mask_out
+        self.head = ConvBlock(params, 1, params.hidden_channels, params.dilation_factors[0])
         self.body = nn.ModuleList()
         for i in range(params.num_layers - 2):
             block = ConvBlock(params, params.hidden_channels, params.hidden_channels,
-                              params.dilation_factors[i + 1], mask=mask)
-            mask = block.mask_out
+                              params.dilation_factors[i + 1])
             self.body.add_module('block%d' % (i + 1), block)
-        self.mask_out = mask
         self.tail = NormConv1d(params.hidden_channels, 1, kernel_size=params.filter_size,
                                dilation=params.dilation_factors[-1])
         self.pe_filter = PreEmphasisFilter(params.device)
 
-    def forward(self, sig, use_mask=False):
-        out_head = self.head(sig, use_mask)
+    def forward(self, sig):
+        out_head = self.head(sig)
         out_body = out_head
         for b in self.body:
-            out_body = b(out_body, use_mask)
+            out_body = b(out_body)
         out_tail = self.tail(out_body)
         output = self.pe_filter(out_tail)
         return output
