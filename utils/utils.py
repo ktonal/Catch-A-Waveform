@@ -164,7 +164,7 @@ def get_input_signal(params):
     if len(file_name) < 2:
         params.input_file = '.'.join([params.input_file, 'wav'])
     output_folder = file_name[0].replace(' ', '_')
-    samples, Fs = librosa.load(os.path.join('inputs', params.input_file), sr=None,
+    samples, Fs = librosa.load(os.path.join('inputs', params.input_file), sr=16000,
                                offset=params.start_time, duration=2 * params.max_length)
     if samples.shape[0] / Fs > params.max_length:
         n_samples = int(params.max_length * Fs)

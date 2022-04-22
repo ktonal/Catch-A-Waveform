@@ -139,6 +139,8 @@ def train_single_scale(params, signals_list, fs_list, generators_list, noise_amp
         if print_progress or params.plot_losses:
             err_real_D_val = err_real_D.item()
 
+        # TODO :
+        #  - s implify inputs <-> outputs
         if epoch_num == 0:
             if scale_idx == 0:  # We are at coarsest scale
                 prev_signal = torch.full(noise_signal.shape, 0, device=params.device, dtype=noise_signal.dtype)

@@ -16,19 +16,16 @@ python -m pip install -r requirements.txt
 
 ### Training
 
-To train for unconditional inference or bandwidth extension, just place an audio signal inside the `inputs` folder
-and provide it's name. The default extension is `.wav`, for a file with a different extension, provide the name with
-extension:
+To train for unconditional inference, just place an audio signal inside the `inputs` folder
+and provide its name with extension to the `input_file` property in `params.py`.
+Then, from the command-line:
 
 ```
-python train_main.py --input_file <input_file_name>
+python train_main.py
 ```
 
-For speech signals, train with `--speech` flag:
+For speech signals, set `Params.speech` to `True`:
 
-```
-python train_main.py --input_file <input_file_name> --speech
-```
 
 ### Inference
 

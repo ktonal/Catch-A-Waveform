@@ -5,28 +5,11 @@ from training import train
 from utils.plotters import *
 import time
 from datetime import datetime
-import argparse
 from generating import AudioGenerator
-import random
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--gpu_num', help='GPU id to use', default=0, type=int)
-    parser.add_argument('--input_file', help='Path to input file', default='trump_farewell_address_8.wav')
-    parser.add_argument('--start_time', help='Skip beginning, in [sec]', default=0, type=float)
-    parser.add_argument('--max_length', help='Max length of signal, in [sec]', default=25, type=float)
-    parser.add_argument('--init_sample_rate', help='Resample input to a given sample rate', default=16000, type=int)
-    parser.add_argument('--num_epochs', help='Number of training epochs in each scale', default=2000, type=int)
-    parser.add_argument('--num_layers', help='Number of layers in each model', default=8, type=int)
-    parser.add_argument('--speech', default=False, action='store_true')
-    parser.add_argument('--plot_losses', help='Save and plot GAN losses', default=False, action='store_true')
-    parser.add_argument('--plot_signals', help='Plot signals', default=False, action='store_true')
-
-    params_override = parser.parse_args()
 
 startTime = time.time()
 params = Params()
-params = override_params(params, params_override)
 
 
 if params.is_cuda:
